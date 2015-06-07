@@ -165,7 +165,8 @@ CCFLAGS += 			\
 	-fno-inline-functions	\
 	-nostdlib       \
 	-mlongcalls	\
-	-mtext-section-literals
+	-mtext-section-literals \
+	-DBOOT=$(BOOT) -DAPP=$(APP)
 #	-Wall			
 
 CFLAGS = $(CCFLAGS) $(DEFINES) $(EXTRA_CCFLAGS) $(INCLUDES)

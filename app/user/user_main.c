@@ -31,14 +31,17 @@ void ICACHE_FLASH_ATTR user_init(void)
 {
 	uart_init(BIT_RATE_115200, BIT_RATE_115200);
 	os_printf("\n\nready\n\n;");
-	uint8 boot_ver = system_get_boot_version();
-	uint8 boot_mode = system_get_boot_mode();
-	uint32 user_addr = system_get_userbin_addr();
+	uint8 boot_ver = 0;
+	boot_ver = system_get_boot_version();
+	uint8 boot_mode = 0;
+	boot_mode = system_get_boot_mode();
+	uint32 user_addr = 0;
+	user_addr = system_get_userbin_addr();
 
 	{
 		struct station_config config;
-		os_strcpy(config.ssid, "your ssid");
-		os_strcpy(config.password, "your ssid password");
+		os_strcpy(config.ssid, "ChinaNet-966");
+		os_strcpy(config.password, "Jchen0406");
 
 		wifi_set_opmode(STATION_MODE);
 		wifi_station_set_config(&config);
@@ -48,6 +51,6 @@ void ICACHE_FLASH_ATTR user_init(void)
 
 	os_printf("boot ver: [%d], boot mode: [%d]\nuser addr: [%X]\n", boot_ver, boot_mode, user_addr);
 	//替换下面的APPID与APPKEY，并取消注释即可
-	//push_register(APPID, "APPKEY", msg_recv_cb);
+	push_register(15104, "854728a8061611e5925a002288fc6d2b", msg_recv_cb);
 }
 
