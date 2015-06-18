@@ -55,6 +55,22 @@ void ICACHE_FLASH_ATTR user_init(void)
 
 	os_printf("boot ver: [%d], boot mode: [%d]\nuser addr: [%X]\n", boot_ver, boot_mode, user_addr);
 	//替换下面的APPID与APPKEY，并取消注释即可
-	push_register(15104, "854728a8061611e5925a002288fc6d2b", "39be2db6140611e5abf9266d579b11d9", VER_SDK, msg_recv_cb);
+	espush_register(15104, "854728a8061611e5925a002288fc6d2b", "39be2db6140611e5abf9266d579b11d9", VER_SDK, msg_recv_cb);
+
+	regist_info_s reg_info;
+#ifdef BOOT
+	reg_info.second_boot = 1;
+#else
+	reg_info.second_boot = 0;
+#endif
+
+#ifdef APP
+	reg_info.boot_app = APP;
+#else
+	reg_info.boot_app = 0;
+#endif
+
+	reg_info.flashmap = system_get_flash_size_map();
+	espush_init_regist_info(&reg_info);
 }
 

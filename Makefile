@@ -166,7 +166,11 @@ CCFLAGS += 			\
 	-nostdlib       \
 	-mlongcalls	\
 	-mtext-section-literals \
-	-DBOOT=$(BOOT) -DAPP=$(APP)
+	-DBOOT=$(BOOT) \
+	-DAPP=$(APP) \
+	-DSPI_SPEED=$(SPI_SPEED) \
+	-DSPI_MODE=$(SPI_MODE) \
+	-DSPI_SIZE_MAP=$(SPI_SIZE_MAP)
 #	-Wall			
 
 CFLAGS = $(CCFLAGS) $(DEFINES) $(EXTRA_CCFLAGS) $(INCLUDES)
