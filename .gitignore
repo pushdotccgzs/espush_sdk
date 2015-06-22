@@ -9,3 +9,6 @@ bin/*.bin
 
 bin/upgrade/*.dump
 bin/upgrade/*.S
+
+.pydevproject
+
