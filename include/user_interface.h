@@ -23,13 +23,17 @@
 #endif
 
 enum rst_reason {
-	DEFAULT_RST_FLAG	= 0,
-	WDT_RST_FLAG	= 1,
-	EXP_RST_FLAG    = 2
+	REASON_DEFAULT_RST		= 0,
+	REASON_WDT_RST			= 1,
+	REASON_EXCEPTION_RST	= 2,
+	REASON_SOFT_WDT_RST   	= 3,
+	REASON_SOFT_RESTART 	= 4,
+	REASON_DEEP_SLEEP_AWAKE	= 5,
+	REASON_EXT_SYS_RST      = 6
 };
 
 struct rst_info{
-	uint32 flag;
+	uint32 reason;
 	uint32 exccause;
 	uint32 epc1;
 	uint32 epc2;
@@ -37,6 +41,8 @@ struct rst_info{
 	uint32 excvaddr;
 	uint32 depc;
 };
+
+struct rst_info* system_get_rst_info(void);
 
 #define UPGRADE_FW_BIN1         0x00
 #define UPGRADE_FW_BIN2         0x01
@@ -87,6 +93,7 @@ bool system_rtc_mem_read(uint8 src_addr, void *des_addr, uint16 load_size);
 bool system_rtc_mem_write(uint8 des_addr, const void *src_addr, uint16 save_size);
 
 void system_uart_swap(void);
+void system_uart_de_swap(void);
 
 uint16 system_adc_read(void);
 uint16 system_get_vdd33(void);
@@ -109,6 +116,29 @@ bool system_restart_enhance(uint8 bin_type, uint32 bin_addr);
 
 bool system_update_cpu_freq(uint8 freq);
 uint8 system_get_cpu_freq(void);
+
+enum flash_size_map {
+    FLASH_SIZE_4M_MAP_256_256 = 0,
+    FLASH_SIZE_2M,
+    FLASH_SIZE_8M_MAP_512_512,
+    FLASH_SIZE_16M_MAP_512_512,
+    FLASH_SIZE_32M_MAP_512_512,
+    FLASH_SIZE_16M_MAP_1024_1024,
+    FLASH_SIZE_32M_MAP_1024_1024
+};
+
+enum flash_size_map system_get_flash_size_map(void);
+
+void system_phy_set_max_tpw(uint8 max_tpw);
+void system_phy_set_tpw_via_vdd33(uint16 vdd33);
+void system_phy_set_rfoption(uint8 option);
+
+bool system_param_save_with_protect(uint16 start_sec, void *param, uint16 len);
+bool system_param_load(uint16 start_sec, uint16 offset, void *param, uint16 len);
+
+void system_soft_wdt_stop(void);
+void system_soft_wdt_restart(void);
+void system_soft_wdt_feed(void);
 
 #define NULL_MODE       0x00
 #define STATION_MODE    0x01
@@ -140,6 +170,7 @@ struct bss_info {
     sint8 rssi;
     AUTH_MODE authmode;
     uint8 is_hidden;
+    sint16 freq_offset;
 };
 
 typedef struct _scaninfo {
@@ -168,6 +199,8 @@ bool wifi_station_set_config_current(struct station_config *config);
 
 bool wifi_station_connect(void);
 bool wifi_station_disconnect(void);
+
+sint8 wifi_station_get_rssi(void);
 
 struct scan_config {
     uint8 *ssid;	// Note: ssid == NULL, don't filter ssid.
@@ -202,10 +235,14 @@ uint8 wifi_station_get_connect_status(void);
 uint8 wifi_station_get_current_ap_id(void);
 bool wifi_station_ap_change(uint8 current_ap_id);
 bool wifi_station_ap_number_set(uint8 ap_number);
+uint8 wifi_station_get_ap_info(struct station_config config[]);
 
 bool wifi_station_dhcpc_start(void);
 bool wifi_station_dhcpc_stop(void);
 enum dhcp_status wifi_station_dhcpc_status(void);
+
+char* wifi_station_get_hostname(void);
+bool wifi_station_set_hostname(char *name);
 
 struct softap_config {
     uint8 ssid[32];
@@ -241,15 +278,16 @@ enum dhcps_offer_option{
 	OFFER_END
 };
 
+uint8 wifi_softap_get_station_num(void);
 struct station_info * wifi_softap_get_station_info(void);
 void wifi_softap_free_station_info(void);
-uint8 wifi_station_get_ap_info(struct station_config config[]);
 
 bool wifi_softap_dhcps_start(void);
 bool wifi_softap_dhcps_stop(void);
 bool wifi_softap_set_dhcps_lease(struct dhcps_lease *please);
+bool wifi_softap_get_dhcps_lease(struct dhcps_lease *please);
 enum dhcp_status wifi_softap_dhcps_status(void);
-bool wifi_softap_dhcps_set_offer_option(uint8 level, void* optarg);
+bool wifi_softap_set_dhcps_offer_option(uint8 level, void* optarg);
 
 #define STATION_IF      0x00
 #define SOFTAP_IF       0x01
@@ -386,5 +424,27 @@ typedef struct _esp_event {
 typedef void (* wifi_event_handler_cb_t)(System_Event_t *event);
 
 void wifi_set_event_handler_cb(wifi_event_handler_cb_t cb);
+
+typedef enum wps_type {
+	WPS_TYPE_DISABLE = 0,
+	WPS_TYPE_PBC,
+	WPS_TYPE_PIN,
+	WPS_TYPE_DISPLAY,
+	WPS_TYPE_MAX,
+} WPS_TYPE_t;
+
+enum wps_cb_status {
+	WPS_CB_ST_SUCCESS = 0,
+	WPS_CB_ST_FAILED,
+	WPS_CB_ST_TIMEOUT,
+	WPS_CB_ST_WEP,
+};
+
+bool wifi_wps_enable(WPS_TYPE_t wps_type);
+bool wifi_wps_disable(void);
+bool wifi_wps_start(void);
+
+typedef void (*wps_st_cb_t)(int status);
+bool wifi_set_wps_cb(wps_st_cb_t cb);
 
 #endif

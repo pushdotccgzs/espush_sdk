@@ -26,6 +26,7 @@ import os
 import re
 import binascii
 import struct
+import zlib
 
 
 TEXT_ADDRESS = 0x40100000
@@ -93,18 +94,35 @@ def combine_bin(file_name,dest_file_name,start_offset_addr,need_chk):
         else:
         	print '!!!Open %s fail!!!'%(file_name)
 
+
+def getFileCRC(_path): 
+    try: 
+        blocksize = 1024 * 64 
+        f = open(_path,"rb") 
+        str = f.read(blocksize) 
+        crc = 0 
+        while(len(str) != 0): 
+            crc = binascii.crc32(str, crc) 
+            str = f.read(blocksize) 
+        f.close() 
+    except: 
+        print 'get file crc error!' 
+        return 0 
+    return crc
+
 def gen_appbin():
     global chk_sum
+    global crc_sum
     global blocks
     if len(sys.argv) != 6:
-        print 'Usage: gen_appbin.py eagle.app.out boot_mode flash_mode flash_clk_div flash_size'
+        print 'Usage: gen_appbin.py eagle.app.out boot_mode flash_mode flash_clk_div flash_size_map'
         sys.exit(0)
 
     elf_file = sys.argv[1]
     boot_mode = sys.argv[2]
     flash_mode = sys.argv[3]
     flash_clk_div = sys.argv[4]
-    flash_size = sys.argv[5]
+    flash_size_map = sys.argv[5]
 
     flash_data_line  = 16
     data_line_bits = 0xf
@@ -179,17 +197,19 @@ def gen_appbin():
     #     2 :  80m / 4
     #    0xf:  80m / 1
     #-------------------
-    #flash_size=
-    #     0 : 512 KB
+    #flash_size_map=
+    #     0 : 512 KB (256 KB + 256 KB)
     #     1 : 256 KB
-    #     2 : 1024 KB
-    #     3 : 2048 KB
-    #     4 : 4096 KB
+    #     2 : 1024 KB (512 KB + 512 KB)
+    #     3 : 2048 KB (512 KB + 512 KB)
+    #     4 : 4096 KB (512 KB + 512 KB)
+    #     5 : 2048 KB (1024 KB + 1024 KB)
+    #     6 : 4096 KB (1024 KB + 1024 KB)
     #-------------------
     #   END OF SPI FLASH PARAMS
     #============================
     byte2=int(flash_mode)&0xff
-    byte3=(((int(flash_size)<<4)| int(flash_clk_div))&0xff)
+    byte3=(((int(flash_size_map)<<4)| int(flash_clk_div))&0xff)
 	
     if boot_mode == '2':
         # write irom bin head
@@ -237,13 +257,17 @@ def gen_appbin():
         else :
             print '!!!Open %s fail!!!'%(flash_bin_name)
             sys.exit(0)
-
+    if boot_mode == '1' or boot_mode == '2':
+        all_bin_crc = getFileCRC(flash_bin_name)
+        print all_bin_crc
+        if all_bin_crc < 0:
+            all_bin_crc = abs(all_bin_crc) - 1
+        else :
+            all_bin_crc = abs(all_bin_crc) + 1
+        print all_bin_crc
+        write_file(flash_bin_name,chr((all_bin_crc & 0x000000FF))+chr((all_bin_crc & 0x0000FF00) >> 8)+chr((all_bin_crc & 0x00FF0000) >> 16)+chr((all_bin_crc & 0xFF000000) >> 24))
     cmd = 'rm eagle.app.sym'
     os.system(cmd)
 
 if __name__=='__main__':
-    print 'sys argv: [%d]' % len(sys.argv)
-    for el in sys.argv:
-        print '[%r], ' % el,
-    print ''
     gen_appbin()
