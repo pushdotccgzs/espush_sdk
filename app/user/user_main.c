@@ -21,6 +21,10 @@ void ICACHE_FLASH_ATTR msg_recv_cb(uint8* pdata, uint32 len)
 	os_printf("\n\nMSG_RECV_CB: [%d], [%s]\n\n", len, pdata);
 }
 
+void ICACHE_FLASH_ATTR user_rf_pre_init()
+{
+
+}
 /******************************************************************************
  * FunctionName : user_init
  * Description  : entry of user application, init user function here
@@ -31,14 +35,17 @@ void ICACHE_FLASH_ATTR user_init(void)
 {
 	uart_init(BIT_RATE_115200, BIT_RATE_115200);
 	os_printf("\n\nready\n\n;");
-	uint8 boot_ver = system_get_boot_version();
-	uint8 boot_mode = system_get_boot_mode();
-	uint32 user_addr = system_get_userbin_addr();
+	uint8 boot_ver = 0;
+	boot_ver = system_get_boot_version();
+	uint8 boot_mode = 0;
+	boot_mode = system_get_boot_mode();
+	uint32 user_addr = 0;
+	user_addr = system_get_userbin_addr();
 
 	{
 		struct station_config config;
-		os_strcpy(config.ssid, "your ssid");
-		os_strcpy(config.password, "your ssid password");
+		os_strcpy(config.ssid, "useease2");
+		os_strcpy(config.password, "1CBE991A14");
 
 		wifi_set_opmode(STATION_MODE);
 		wifi_station_set_config(&config);
@@ -48,6 +55,22 @@ void ICACHE_FLASH_ATTR user_init(void)
 
 	os_printf("boot ver: [%d], boot mode: [%d]\nuser addr: [%X]\n", boot_ver, boot_mode, user_addr);
 	//替换下面的APPID与APPKEY，并取消注释即可
-	//push_register(APPID, "APPKEY", msg_recv_cb);
+	espush_register(15104, "854728a8061611e5925a002288fc6d2b", "39be2db6140611e5abf9266d579b11d9", VER_SDK, msg_recv_cb);
+
+	regist_info_s reg_info;
+#ifdef BOOT
+	reg_info.second_boot = 1;
+#else
+	reg_info.second_boot = 0;
+#endif
+
+#ifdef APP
+	reg_info.boot_app = APP;
+#else
+	reg_info.boot_app = 0;
+#endif
+
+	reg_info.flashmap = system_get_flash_size_map();
+	espush_init_regist_info(&reg_info);
 }
 

@@ -24,7 +24,7 @@ BOOT?=none
 APP?=0
 SPI_SPEED?=40
 SPI_MODE?=QIO
-SPI_SIZE_MAP?=0
+SPI_SIZE?=512
 
 ifeq ($(BOOT), new)
     boot = new
@@ -75,87 +75,56 @@ else
     endif
 endif
 
-addr = 0x01000
-
-ifeq ($(SPI_SIZE_MAP), 1)
-  size_map = 1
-  flash = 256
+# flash larger than 1024KB only use 1024KB to storage user1.bin and user2.bin
+ifeq ($(SPI_SIZE), 256)
+    size = 1
+    flash = 256
 else
-  ifeq ($(SPI_SIZE_MAP), 2)
-    size_map = 2
-    flash = 1024
-    ifeq ($(app), 2)
-      addr = 0x81000
+    ifeq ($(SPI_SIZE), 1024)
+        size = 2
+        flash = 1024
+    else
+        ifeq ($(SPI_SIZE), 2048)
+            size = 3
+            flash = 1024
+        else
+            ifeq ($(SPI_SIZE), 4096)
+                size = 4
+                flash = 1024
+            else
+                size = 0
+                flash = 512
+            endif
+        endif
     endif
+endif
+
+ifeq ($(flash), 512)
+  ifeq ($(app), 1)
+    addr = 0x01000
   else
-    ifeq ($(SPI_SIZE_MAP), 3)
-      size_map = 3
-      flash = 2048
+    ifeq ($(app), 2)
+      addr = 0x41000
+    endif
+  endif
+else
+  ifeq ($(flash), 1024)
+    ifeq ($(app), 1)
+      addr = 0x01000
+    else
       ifeq ($(app), 2)
         addr = 0x81000
-      endif
-    else
-      ifeq ($(SPI_SIZE_MAP), 4)
-        size_map = 4
-        flash = 4096
-        ifeq ($(app), 2)
-          addr = 0x81000
-        endif
-      else
-        ifeq ($(SPI_SIZE_MAP), 5)
-          size_map = 5
-          flash = 2048
-          ifeq ($(app), 2)
-            addr = 0x101000
-          endif
-        else
-          ifeq ($(SPI_SIZE_MAP), 6)
-            size_map = 6
-            flash = 4096
-            ifeq ($(app), 2)
-              addr = 0x101000
-            endif
-          else
-            size_map = 0
-            flash = 512
-            ifeq ($(app), 2)
-              addr = 0x41000
-            endif
-          endif
-        endif
       endif
     endif
   endif
 endif
-
+        
 LD_FILE = $(LDDIR)/eagle.app.v6.ld
 
 ifneq ($(boot), none)
 ifneq ($(app),0)
-    ifeq ($(size_map), 6)
-      LD_FILE = $(LDDIR)/eagle.app.v6.$(boot).2048.ld
-    else
-      ifeq ($(size_map), 5)
-        LD_FILE = $(LDDIR)/eagle.app.v6.$(boot).2048.ld
-      else
-        ifeq ($(size_map), 4)
-          LD_FILE = $(LDDIR)/eagle.app.v6.$(boot).1024.app$(app).ld
-        else
-          ifeq ($(size_map), 3)
-            LD_FILE = $(LDDIR)/eagle.app.v6.$(boot).1024.app$(app).ld
-          else
-            ifeq ($(size_map), 2)
-              LD_FILE = $(LDDIR)/eagle.app.v6.$(boot).1024.app$(app).ld
-            else
-              ifeq ($(size_map), 0)
-                LD_FILE = $(LDDIR)/eagle.app.v6.$(boot).512.app$(app).ld
-              endif
-            endif
-	      endif
-	    endif
-	  endif
-	endif
-	BIN_NAME = user$(app).$(flash).$(boot).$(size_map)
+	LD_FILE = $(LDDIR)/eagle.app.v6.$(boot).$(flash).app$(app).ld
+	BIN_NAME = user$(app).$(flash).$(boot)
 endif
 else
     app = 0
@@ -188,6 +157,7 @@ OBINS := $(GEN_BINS:%=$(BINODIR)/%)
 
 CCFLAGS += 			\
 	-g			\
+	-O2			\
 	-Wpointer-arith		\
 	-Wundef			\
 	-Werror			\
@@ -196,8 +166,11 @@ CCFLAGS += 			\
 	-nostdlib       \
 	-mlongcalls	\
 	-mtext-section-literals \
-	-ffunction-sections \
-	-fdata-sections
+	-DBOOT=$(BOOT) \
+	-DAPP=$(APP) \
+	-DSPI_SPEED=$(SPI_SPEED) \
+	-DSPI_MODE=$(SPI_MODE) \
+	-DSPI_SIZE_MAP=$(SPI_SIZE_MAP)
 #	-Wall			
 
 CFLAGS = $(CCFLAGS) $(DEFINES) $(EXTRA_CCFLAGS) $(INCLUDES)
@@ -241,6 +214,7 @@ ifeq ($(APP), 0)
 else
 	@$(RM) -r ../bin/upgrade/$(BIN_NAME).S ../bin/upgrade/$(BIN_NAME).dump
 	@$(OBJDUMP) -x -s $< > ../bin/upgrade/$(BIN_NAME).dump
+	@echo 'hello' $<
 	@$(OBJDUMP) -S $< > ../bin/upgrade/$(BIN_NAME).S
 endif
 
@@ -253,7 +227,7 @@ endif
 	@echo "!!!"
 	
 ifeq ($(app), 0)
-	@python ../tools/gen_appbin.py $< 0 $(mode) $(freqdiv) $(size_map)
+	@python ../tools/gen_appbin.py $< 0 $(mode) $(freqdiv) $(size)
 	@mv eagle.app.flash.bin ../bin/eagle.flash.bin
 	@mv eagle.app.v6.irom0text.bin ../bin/eagle.irom0text.bin
 	@rm eagle.app.v6.*
@@ -262,21 +236,12 @@ ifeq ($(app), 0)
 	@echo "eagle.flash.bin-------->0x00000"
 	@echo "eagle.irom0text.bin---->0x40000"
 else
-    ifneq ($(boot), new)
-		@python ../tools/gen_appbin.py $< 1 $(mode) $(freqdiv) $(size_map)
-		@echo "Support boot_v1.1 and +"
-    else
-		@python ../tools/gen_appbin.py $< 2 $(mode) $(freqdiv) $(size_map)
-
-    	ifeq ($(size_map), 6)
-		@echo "Support boot_v1.4 and +"
-        else
-            ifeq ($(size_map), 5)
-		@echo "Support boot_v1.4 and +"
-            else
+    ifeq ($(boot), new)
+		@python ../tools/gen_appbin.py $< 2 $(mode) $(freqdiv) $(size)
 		@echo "Support boot_v1.2 and +"
-            endif
-        endif
+    else
+		@python ../tools/gen_appbin.py $< 1 $(mode) $(freqdiv) $(size)
+		@echo "Support boot_v1.1 and +"
     endif
 
 	@mv eagle.app.flash.bin ../bin/upgrade/$(BIN_NAME).bin
