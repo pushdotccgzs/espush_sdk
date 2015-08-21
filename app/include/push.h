@@ -10,6 +10,8 @@
 
 #include <c_types.h>
 
+#define ESPUSH_VERSION "20150821-master-80bd4f98"
+
 
 /*
  * 客户端能力值，uint8型，不得设置值超过255，否则无效。
@@ -40,6 +42,13 @@ void ICACHE_FLASH_ATTR espush_atcmd_cb(atcmd_cb func);
 typedef void(*luafile_cb)(uint8* filebuf, uint32 len);
 void ICACHE_FLASH_ATTR espush_luafile_cb(luafile_cb func);
 
+
+/*
+ * 实时状态获取回调
+ */
+typedef void(*rt_status_cb)(uint32 msgid, char* key, int16_t length);
+void ICACHE_FLASH_ATTR espush_rtstatus_cb(rt_status_cb func);
+void ICACHE_FLASH_ATTR espush_rtstatus_ret_to_gateway(uint32 cur_msgid, const char* buf, uint8_t length);
 
 /*
  * appid 与 appkey为平台申请值
@@ -119,6 +128,27 @@ sint8 ICACHE_FLASH_ATTR espush_msg(uint8* buf, uint16 len);
  * 或者连接状态, 参考 enum CONN_STATUS 的定义。
  */
 sint8 ICACHE_FLASH_ATTR espush_server_connect_status();
+
+void ICACHE_FLASH_ATTR espush_network_cfg_by_smartconfig();
+
+void ICACHE_FLASH_ATTR show_systime();
+
+/*
+ * 调试信息开关
+ * 与os_printf唯一的区别在于可以输出时间戳
+ * 输出系统启动时间
+ */
+#define ESP_DEBUG 1
+
+#ifdef ESP_DEBUG
+#define ESP_DBG(fmt, ...) do {	\
+	show_systime();	\
+	os_printf(fmt, ##__VA_ARGS__);	\
+	}while(0)
+
+#else
+#define ESP_DBG
+#endif
 
 
 #endif /* APP_INCLUDE_PUSH_H_ */

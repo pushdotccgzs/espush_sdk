@@ -14,6 +14,7 @@
 #include <driver/uart.h>
 #include <user_interface.h>
 #include "push.h"
+#include "user_version.h"
 
 
 void ICACHE_FLASH_ATTR msg_recv_cb(uint8* pdata, uint32 len)
@@ -35,6 +36,7 @@ void ICACHE_FLASH_ATTR user_init(void)
 {
 	uart_init(BIT_RATE_115200, BIT_RATE_115200);
 	os_printf("\n\nready\n\n;");
+	os_printf(ESPUSH_SDKLIB_VERSION);
 	uint8 boot_ver = 0;
 	boot_ver = system_get_boot_version();
 	uint8 boot_mode = 0;
