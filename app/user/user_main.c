@@ -13,6 +13,7 @@
 #include <osapi.h>
 #include <driver/uart.h>
 #include <user_interface.h>
+#include <mem.h>
 #include "push.h"
 
 
@@ -25,6 +26,13 @@ void ICACHE_FLASH_ATTR user_rf_pre_init()
 {
 
 }
+
+
+void system_init_over()
+{
+	ESP_DBG("system load completed.\n");
+}
+
 /******************************************************************************
  * FunctionName : user_init
  * Description  : entry of user application, init user function here
@@ -35,42 +43,26 @@ void ICACHE_FLASH_ATTR user_init(void)
 {
 	uart_init(BIT_RATE_115200, BIT_RATE_115200);
 	os_printf("\n\nready\n\n;");
-	uint8 boot_ver = 0;
-	boot_ver = system_get_boot_version();
-	uint8 boot_mode = 0;
-	boot_mode = system_get_boot_mode();
-	uint32 user_addr = 0;
-	user_addr = system_get_userbin_addr();
 
-	{
-		struct station_config config;
-		os_strcpy(config.ssid, "useease2");
-		os_strcpy(config.password, "1CBE991A14");
+	//启动完成后从flash读入资料
+	espush_cfg_s cfg;
+	if(!read_espush_cfg(&cfg)) {
+		//读取失败，开启配网模式
+		ESP_DBG("read flash cfg info failed. \n");
+		espush_local_init("ESP_AT", "espush.cn");
+	} else {
+		//读取成功，直接开启espush_register即可
+		//system_init_done后会自动连接
+		ESP_DBG("read flash cfg info success. \n");
+		regist_info_s reg_info;
+		reg_info.second_boot = 0;
+		reg_info.boot_app = 0;
+		reg_info.flashmap = system_get_flash_size_map();
 
-		wifi_set_opmode(STATION_MODE);
-		wifi_station_set_config(&config);
-		wifi_station_set_auto_connect(1);
-		wifi_station_dhcpc_start();
+		espush_init_regist_info(&reg_info);
+		espush_register(cfg.app_id, cfg.appkey, cfg.devid, VER_SDK, msg_recv_cb);
 	}
 
-	os_printf("boot ver: [%d], boot mode: [%d]\nuser addr: [%X]\n", boot_ver, boot_mode, user_addr);
-	//替换下面的APPID与APPKEY，并取消注释即可
-	espush_register(15104, "854728a8061611e5925a002288fc6d2b", "39be2db6140611e5abf9266d579b11d9", VER_SDK, msg_recv_cb);
-
-	regist_info_s reg_info;
-#ifdef BOOT
-	reg_info.second_boot = 1;
-#else
-	reg_info.second_boot = 0;
-#endif
-
-#ifdef APP
-	reg_info.boot_app = APP;
-#else
-	reg_info.boot_app = 0;
-#endif
-
-	reg_info.flashmap = system_get_flash_size_map();
-	espush_init_regist_info(&reg_info);
+	system_init_done_cb(system_init_over);
 }
 

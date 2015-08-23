@@ -10,6 +10,7 @@
 
 #include <c_types.h>
 
+#define ESPUSH_VERSION "20150822-master-80bd4f98"
 
 /*
  * 客户端能力值，uint8型，不得设置值超过255，否则无效。
@@ -42,6 +43,13 @@ void ICACHE_FLASH_ATTR espush_luafile_cb(luafile_cb func);
 
 
 /*
+ * 实时状态获取回调
+ */
+typedef void(*rt_status_cb)(uint32 msgid, char* key, int16_t length);
+void ICACHE_FLASH_ATTR espush_rtstatus_cb(rt_status_cb func);
+void ICACHE_FLASH_ATTR espush_rtstatus_ret_to_gateway(uint32 cur_msgid, const char* buf, uint8_t length);
+
+/*
  * appid 与 appkey为平台申请值
  * devid 为设备唯一标志码，32字节，可使用uuid自动生成
  * 或递增出现，为您业务标志，可使用服务端SDK对单个设备进行唯一定位
@@ -53,6 +61,22 @@ typedef struct push_config_t {
 	enum VERTYPE vertype;
 	msg_cb msgcb;
 }push_config;
+
+
+/*
+ * 保存appid、appkey、devid等信息
+ * 因为flash的特性，未读写过的空间里也是有内容的
+ * 所以需要设置一个hash校验
+ * 若校验通过则证明是人工写入的
+ */
+typedef uint32 HASH_CLS;
+typedef struct {
+	uint32 app_id;
+	uint8 appkey[32];
+	char devid[32];
+	HASH_CLS hashval;
+} __attribute__ ((packed)) espush_cfg_s;;
+
 
 
 /*
@@ -123,6 +147,16 @@ sint8 ICACHE_FLASH_ATTR espush_server_connect_status();
 void ICACHE_FLASH_ATTR espush_network_cfg_by_smartconfig();
 
 void ICACHE_FLASH_ATTR show_systime();
+
+/*
+ * 连接后可获得当前时间
+ * 使用unix时间戳表示
+ * 返回0 则代表还未连接
+ * 留意：连上后，再次断开，时间戳会得到保留。
+ */
+uint32 ICACHE_FLASH_ATTR get_timestamp();
+
+uint8 ICACHE_FLASH_ATTR set_gpio_edge(uint8 pin, uint8 edge);
 
 /*
  * 调试信息开关
