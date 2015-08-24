@@ -49,7 +49,7 @@ void ICACHE_FLASH_ATTR user_init(void)
 	if(!read_espush_cfg(&cfg)) {
 		//读取失败，开启配网模式
 		ESP_DBG("read flash cfg info failed. \n");
-		espush_local_init("ESP_AT", "espush.cn");
+		espush_local_init("ESP_AT", "espush.cn", VER_SDK, msg_recv_cb);
 	} else {
 		//读取成功，直接开启espush_register即可
 		//system_init_done后会自动连接
