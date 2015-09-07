@@ -14,8 +14,9 @@
 #include <driver/uart.h>
 #include <user_interface.h>
 #include <mem.h>
-#include "push.h"
 
+#include "push.h"
+#include "dht.h"
 
 void ICACHE_FLASH_ATTR msg_recv_cb(uint8* pdata, uint32 len)
 {
@@ -33,6 +34,24 @@ void system_init_over()
 	ESP_DBG("system load completed.\n");
 }
 
+
+void push_wsd(void* param)
+{
+	struct sensor_reading *dht = readDHT(0);
+	if(!dht->success) {
+		ESP_DBG("reading failed.\n");
+		return;
+	}
+	char buf[32] = { 0 };
+
+	uint32 temperature = dht->temperature * 100;
+	uint32 timestamp = get_timestamp();
+	os_sprintf(buf, "wd,%d", temperature);
+
+	espush_msg_plan(buf, os_strlen(buf), timestamp);
+}
+
+
 /******************************************************************************
  * FunctionName : user_init
  * Description  : entry of user application, init user function here
@@ -43,26 +62,25 @@ void ICACHE_FLASH_ATTR user_init(void)
 {
 	uart_init(BIT_RATE_115200, BIT_RATE_115200);
 	os_printf("\n\nready\n\n;");
+	struct rst_info* rstInfo = system_get_rst_info();
+	ESP_DBG("RST => reason: [%d], exccause: [%d], epc1: [%d], epc2: [%d], epc3: [%d], excvaddr: [%d], depc: [%d]\n",
+			rstInfo->reason, rstInfo->exccause, rstInfo->epc1, rstInfo->epc2, rstInfo->epc3, rstInfo->excvaddr, rstInfo->depc);
 
-	//启动完成后从flash读入资料
-	espush_cfg_s cfg;
-	if(!read_espush_cfg(&cfg)) {
-		//读取失败，开启配网模式
-		ESP_DBG("read flash cfg info failed. \n");
-		espush_local_init("ESP_AT", "espush.cn", VER_SDK, msg_recv_cb);
-	} else {
-		//读取成功，直接开启espush_register即可
-		//system_init_done后会自动连接
-		ESP_DBG("read flash cfg info success. \n");
-		regist_info_s reg_info;
-		reg_info.second_boot = 0;
-		reg_info.boot_app = 0;
-		reg_info.flashmap = system_get_flash_size_map();
+	struct station_config config;
+	os_strcpy(config.ssid, "ChinaNet-966");
+	os_strcpy(config.password, "Jchen0406");
 
-		espush_init_regist_info(&reg_info);
-		espush_register(cfg.app_id, cfg.appkey, cfg.devid, VER_SDK, msg_recv_cb);
-	}
+	wifi_set_opmode(STATION_MODE);
+	wifi_station_set_config(&config);
+	wifi_station_set_auto_connect(1);
+	wifi_station_dhcpc_start();
 
-	system_init_done_cb(system_init_over);
+	espush_register(15192, "987d4a76556011e5b2bd002288fc6d2b", "", VER_SDK, NULL);
+	DHTInit(SENSOR_DHT11, 5000);
+
+	static os_timer_t sensor_timer;
+	os_timer_disarm(&sensor_timer);
+	os_timer_setfn(&sensor_timer, push_wsd, NULL);
+	os_timer_arm(&sensor_timer, 60000, 1);
 }
 
