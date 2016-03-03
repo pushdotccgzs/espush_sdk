@@ -14,41 +14,101 @@
 #include <driver/uart.h>
 #include <user_interface.h>
 #include <mem.h>
+#include <espconn.h>
 
-#include "push.h"
-#include "dht.h"
 
-void ICACHE_FLASH_ATTR msg_recv_cb(uint8* pdata, uint32 len)
-{
-	os_printf("\n\nMSG_RECV_CB: [%d], [%s]\n\n", len, pdata);
-}
+static struct espconn user_conn;
+static esp_tcp user_tcp;
+static os_timer_t gl_timer;
+static os_timer_t wifi_checker;
+
+
+void init_done_cb(void* param);
+
 
 void ICACHE_FLASH_ATTR user_rf_pre_init()
 {
-
+	os_printf("user_rf_pre_init.\n");
 }
 
 
-void system_init_over()
+void reconnect_timer_cb(void* param)
 {
-	ESP_DBG("system load completed.\n");
+	os_printf("reconnect_timer_cb\n");
+	init_done_cb(NULL);
 }
 
 
-void push_wsd(void* param)
+void reconnect()
 {
-	struct sensor_reading *dht = readDHT(0);
-	if(!dht->success) {
-		ESP_DBG("reading failed.\n");
+	os_timer_disarm(&gl_timer);
+	os_timer_setfn(&gl_timer, reconnect_timer_cb, NULL);
+	os_timer_arm(&gl_timer, 1000, 0);
+}
+
+
+void disconnected_cb(void* args)
+{
+	os_printf("DISCONNECTED.\n");
+	reconnect();
+}
+
+
+void recv_cb(void* args, char *pdata, unsigned short len)
+{
+	os_printf("RECV CB: [%d], [%d].\n", len, sizeof(unsigned short));
+}
+
+
+void sent_cb(void* args)
+{
+	os_printf("SENT.\n");
+}
+
+
+void connected_cb(void* args)
+{
+	os_printf("CONNECTED.\n");
+    espconn_regist_disconcb(&user_conn, disconnected_cb);
+    espconn_regist_recvcb(&user_conn, recv_cb);
+    espconn_regist_sentcb(&user_conn, sent_cb);
+
+    espconn_sent(&user_conn, "HELLO", os_strlen("HELLO"));
+}
+
+
+void reconnected_cb(void* args, sint8 err)
+{
+	os_printf("RECONNECTED [%d].\n", err);
+	reconnect();
+}
+
+
+void init_done_cb(void* param)
+{
+	if(wifi_station_get_connect_status() != STATION_GOT_IP) {
+		os_printf("WAIT...\n");
 		return;
+	} else {
+		os_timer_disarm(&wifi_checker);
 	}
-	char buf[32] = { 0 };
 
-	uint32 temperature = dht->temperature * 100;
-	uint32 timestamp = get_timestamp();
-	os_sprintf(buf, "wd,%d", temperature);
 
-	espush_msg_plan(buf, os_strlen(buf), timestamp);
+	user_conn.type = ESPCONN_TCP;
+	user_conn.state = ESPCONN_NONE;
+	user_conn.proto.tcp = &user_tcp;
+	user_conn.proto.tcp->remote_ip[0] = 192;
+	user_conn.proto.tcp->remote_ip[1] = 168;
+	user_conn.proto.tcp->remote_ip[2] = 0;
+	user_conn.proto.tcp->remote_ip[3] = 103;
+	user_conn.proto.tcp->local_port = espconn_port();
+	user_conn.proto.tcp->remote_port = 12345;
+
+	//regist event callback
+    espconn_regist_connectcb(&user_conn, connected_cb);
+    espconn_regist_reconcb(&user_conn, reconnected_cb);
+
+    espconn_connect(&user_conn);
 }
 
 
@@ -63,8 +123,6 @@ void ICACHE_FLASH_ATTR user_init(void)
 	uart_init(BIT_RATE_115200, BIT_RATE_115200);
 	os_printf("\n\nready\n\n;");
 	struct rst_info* rstInfo = system_get_rst_info();
-	ESP_DBG("RST => reason: [%d], exccause: [%d], epc1: [%d], epc2: [%d], epc3: [%d], excvaddr: [%d], depc: [%d]\n",
-			rstInfo->reason, rstInfo->exccause, rstInfo->epc1, rstInfo->epc2, rstInfo->epc3, rstInfo->excvaddr, rstInfo->depc);
 
 	struct station_config config;
 	os_strcpy(config.ssid, "ChinaNet-966");
@@ -75,12 +133,8 @@ void ICACHE_FLASH_ATTR user_init(void)
 	wifi_station_set_auto_connect(1);
 	wifi_station_dhcpc_start();
 
-	espush_register(15192, "987d4a76556011e5b2bd002288fc6d2b", "", VER_SDK, NULL);
-	DHTInit(SENSOR_DHT11, 5000);
-
-	static os_timer_t sensor_timer;
-	os_timer_disarm(&sensor_timer);
-	os_timer_setfn(&sensor_timer, push_wsd, NULL);
-	os_timer_arm(&sensor_timer, 60000, 1);
+	os_timer_disarm(&wifi_checker);
+	os_timer_setfn(&wifi_checker, init_done_cb, NULL);
+	os_timer_arm(&wifi_checker, 1000, 1);
 }
 
